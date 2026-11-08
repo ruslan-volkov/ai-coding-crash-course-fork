@@ -32,3 +32,8 @@
 
 # request-logger e2e harness: pinned agent installs
 /request-logger/e2e/.tools/
+
+# Playwright
+/e2e/.data/
+/test-results/
+/playwright-report/

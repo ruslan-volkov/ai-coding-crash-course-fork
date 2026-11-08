@@ -15,6 +15,7 @@
     "typecheck": "react-router typegen && tsc",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:seed": "tsx scripts/seed.ts",
     "db:migrate": "drizzle-kit migrate",
@@ -38,6 +39,7 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router": "8.3.0",
+    "recharts": "^3.10.1",
     "shiki": "^3.22.0",
     "sonner": "^2.0.3",
     "tailwind-merge": "^3.4.0",
@@ -46,6 +48,7 @@
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.12.0",
     "@clack/prompts": "^1.7.0",
+    "@playwright/test": "^1.65.0",
     "@react-router/dev": "8.3.0",
     "@tailwindcss/vite": "^4.1.13",
     "@types/better-sqlite3": "^7.6.13",

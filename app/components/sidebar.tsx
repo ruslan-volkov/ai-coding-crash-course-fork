@@ -1,4 +1,4 @@
-import { NavLink, Form } from "react-router";
+import { NavLink, Form, useLocation } from "react-router";
 import { useState, useEffect } from "react";
 import { cn } from "~/lib/utils";
 import { UserRole } from "~/db/schema";
@@ -62,6 +62,12 @@ const navItems: NavItem[] = [
     roles: [UserRole.Student],
   },
   {
+    label: "Dashboard",
+    to: "/instructor/dashboard",
+    icon: <LayoutDashboard className="size-4" />,
+    roles: [UserRole.Instructor],
+  },
+  {
     label: "My Courses",
     to: "/instructor",
     icon: <GraduationCap className="size-4" />,
@@ -99,12 +105,31 @@ function isVisible(item: NavItem, role: UserRole | null): boolean {
   return item.roles.includes(role);
 }
 
+function matchesPath(to: string, pathname: string): boolean {
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
+
+/**
+ * A parent item ("/instructor") stays unhighlighted when a more specific
+ * visible item ("/instructor/dashboard") matches the current page.
+ */
+function isShadowed(item: NavItem, visible: NavItem[], pathname: string) {
+  return visible.some(
+    (other) =>
+      other.to.startsWith(`${item.to}/`) && matchesPath(other.to, pathname)
+  );
+}
+
 export function Sidebar({
   currentUser,
   recentCourses = [],
   isTeamAdmin = false,
 }: SidebarProps) {
   const currentUserRole = currentUser?.role ?? null;
+  const { pathname } = useLocation();
+  const visibleItems = navItems.filter((item) =>
+    isVisible(item, currentUserRole)
+  );
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
@@ -129,25 +154,23 @@ export function Sidebar({
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
-        {navItems
-          .filter((item) => isVisible(item, currentUserRole))
-          .map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                )
-              }
-            >
-              {item.icon}
-              {item.label}
-            </NavLink>
-          ))}
+        {visibleItems.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                isActive && !isShadowed(item, visibleItems, pathname)
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              )
+            }
+          >
+            {item.icon}
+            {item.label}
+          </NavLink>
+        ))}
         {isTeamAdmin && (
           <NavLink
             to="/team"

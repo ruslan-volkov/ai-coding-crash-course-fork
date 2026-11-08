@@ -8,9 +8,14 @@ import * as schema from "./schema";
 // dragging better-sqlite3 into the browser. Keep this file side-effect free.
 let connection: Database.Database | undefined;
 
+/** SQLite file path. `DATABASE_PATH` lets end-to-end tests use an isolated file. */
+export function getDatabasePath() {
+  return process.env.DATABASE_PATH || "data.db";
+}
+
 export function getSqlite() {
   if (!connection) {
-    connection = new Database("data.db");
+    connection = new Database(getDatabasePath());
     connection.pragma("journal_mode = WAL");
     connection.pragma("foreign_keys = ON");
   }
