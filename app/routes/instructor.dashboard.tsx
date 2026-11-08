@@ -13,8 +13,9 @@ import { RangeSelector } from "~/components/analytics/range-selector";
 import { TrendChart } from "~/components/analytics/trend-chart";
 import { CourseTable } from "~/components/analytics/course-table";
 import { Button } from "~/components/ui/button";
-import { AlertTriangle, DollarSign, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle2, DollarSign, Users } from "lucide-react";
 import { formatCurrency } from "~/lib/utils";
+import { formatCount, formatRatio } from "~/components/analytics/format";
 
 // ─── Instructor Dashboard ───
 // Cross-course analytics for the signed-in instructor. Admins have their own
@@ -40,10 +41,6 @@ export async function loader({ request, url }: Route.LoaderArgs) {
   };
 }
 
-function formatCount(value: number) {
-  return value.toLocaleString("en-US");
-}
-
 export default function InstructorDashboard({
   loaderData,
 }: Route.ComponentProps) {
@@ -61,7 +58,7 @@ export default function InstructorDashboard({
         <RangeSelector current={range} />
       </div>
 
-      <div className="mb-6 grid gap-6 sm:grid-cols-2">
+      <div className="mb-6 grid gap-6 sm:grid-cols-3">
         <StatCard
           label="Total students"
           value={formatCount(summary.totalStudents)}
@@ -73,6 +70,12 @@ export default function InstructorDashboard({
           value={formatCurrency(summary.totalRevenue)}
           icon={<DollarSign className="size-4" />}
           testId="total-revenue"
+        />
+        <StatCard
+          label="Average completion"
+          value={formatRatio(summary.completion)}
+          icon={<CheckCircle2 className="size-4" />}
+          testId="average-completion"
         />
       </div>
 
@@ -91,7 +94,7 @@ export default function InstructorDashboard({
         />
       </div>
 
-      <CourseTable rows={courses} />
+      <CourseTable rows={courses} range={range} />
     </div>
   );
 }

@@ -29,6 +29,17 @@ import { COURSES, USERS } from "../e2e/data";
 //   Alice, 30d: 4 students, $140.00
 //   Alice, 7d:  2 students, $50.00
 //   Bob, all time: 2 students, $150.00 (Kim 1d ago, Max 200d ago)
+//
+// Course analytics (Alice, all time):
+//   Average completion 20% (Kim completed Advanced Testing; 1 of 5)
+//   Intro to Testing: 2 purchased; completion 0/2; avg progress 25%;
+//     drop-off "Why Test?" 1/2, "Check Your Understanding" 0/2;
+//     quiz "Testing Basics": best scores 100% (Sam 1 attempt, Lee 2 —
+//     wrong then right), pass 2/2, 1.5 attempts, question correct 2/3
+//   Advanced Testing: 2 coupon + 1 free, 1 unredeemed seat; completion 1/3;
+//     no lessons, no quizzes
+//   7d cohort, Intro: Sam only — completion 0/1, progress 50%, "Why Test?"
+//     1/1, quiz 1 attempt, question 1/1
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -130,9 +141,19 @@ function purchase(userId: number, courseId: number, cents: number, at: number) {
     .get();
 }
 
-function enroll(userId: number, courseId: number, at: number) {
+function enroll(
+  userId: number,
+  courseId: number,
+  at: number,
+  completedAt: number | null = null
+) {
   db.insert(schema.enrollments)
-    .values({ userId, courseId, enrolledAt: daysAgo(at) })
+    .values({
+      userId,
+      courseId,
+      enrolledAt: daysAgo(at),
+      completedAt: completedAt === null ? null : daysAgo(completedAt),
+    })
     .run();
 }
 
@@ -145,7 +166,8 @@ enroll(USERS.student.id, intro, 3);
 purchase(USERS.learnerLee.id, intro, 3500, 60);
 enroll(USERS.learnerLee.id, intro, 60);
 
-enroll(USERS.learnerKim.id, advanced, 10); // free enrollment, no purchase
+// Free enrollment, no purchase; completed the course 2 days ago.
+enroll(USERS.learnerKim.id, advanced, 10, 2);
 
 const teamPurchase = purchase(USERS.teamBuyer.id, advanced, 9000, 20);
 const team = db

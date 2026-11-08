@@ -1,8 +1,19 @@
+import { Link } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { formatCurrency } from "~/lib/utils";
-import type { CourseTableRow } from "~/services/analyticsService";
+import type {
+  AnalyticsRange,
+  CourseTableRow,
+} from "~/services/analyticsService";
+import { formatPercent, formatRatio } from "./format";
 
-export function CourseTable({ rows }: { rows: CourseTableRow[] }) {
+interface CourseTableProps {
+  rows: CourseTableRow[];
+  /** Carried into each row's course analytics link. */
+  range: AnalyticsRange;
+}
+
+export function CourseTable({ rows, range }: CourseTableProps) {
   return (
     <Card>
       <CardHeader>
@@ -20,17 +31,32 @@ export function CourseTable({ rows }: { rows: CourseTableRow[] }) {
                 <th className="py-2 font-medium">Course</th>
                 <th className="py-2 text-right font-medium">Students</th>
                 <th className="py-2 text-right font-medium">Revenue</th>
+                <th className="py-2 text-right font-medium">Completion</th>
+                <th className="py-2 text-right font-medium">Avg quiz score</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.courseId} className="border-b last:border-0">
-                  <td className="py-2 font-medium">{row.title}</td>
+                  <td className="py-2 font-medium">
+                    <Link
+                      to={`/instructor/${row.courseId}/analytics?range=${range}`}
+                      className="hover:underline"
+                    >
+                      {row.title}
+                    </Link>
+                  </td>
                   <td className="py-2 text-right tabular-nums">
                     {row.students}
                   </td>
                   <td className="py-2 text-right tabular-nums">
                     {formatCurrency(row.revenue)}
+                  </td>
+                  <td className="py-2 text-right tabular-nums">
+                    {formatRatio(row.completion)}
+                  </td>
+                  <td className="py-2 text-right tabular-nums">
+                    {formatPercent(row.averageQuizScore)}
                   </td>
                 </tr>
               ))}
