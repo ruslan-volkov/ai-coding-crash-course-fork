@@ -94,11 +94,15 @@ export default function CourseAnalytics({ loaderData }: Route.ComponentProps) {
   return (
     <div className="mx-auto max-w-7xl p-6 lg:p-8">
       <Link
-        to={isAdmin ? "/admin/courses" : `/instructor/dashboard?range=${range}`}
+        to={
+          isAdmin
+            ? `/admin/analytics?range=${range}`
+            : `/instructor/dashboard?range=${range}`
+        }
         className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4" />
-        {isAdmin ? "All courses" : "Dashboard"}
+        {isAdmin ? "Analytics" : "Dashboard"}
       </Link>
 
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">

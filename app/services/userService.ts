@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "~/db";
 import { users, UserRole } from "~/db/schema";
 
@@ -20,6 +20,18 @@ export function getUserByEmail(email: string) {
 
 export function getUsersByRole(role: UserRole) {
   return db.select().from(users).where(eq(users.role, role)).all();
+}
+
+export type InstructorRef = { id: number; name: string };
+
+/** Every instructor as id and name, ordered by name — e.g. for filter dropdowns. */
+export function listInstructors(): InstructorRef[] {
+  return db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(eq(users.role, UserRole.Instructor))
+    .orderBy(asc(users.name))
+    .all();
 }
 
 export function createUser(

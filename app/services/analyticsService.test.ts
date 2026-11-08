@@ -333,6 +333,24 @@ describe("analyticsService", () => {
       });
     });
 
+    it("totals every instructor's courses platform-wide when no instructor is given", () => {
+      const other = createInstructorWithCourse();
+      const second = createStudent();
+
+      buy(base.user.id, base.course.id, 5000, daysAgo(3));
+      buy(second.id, base.course.id, 4000, daysAgo(40));
+      buy(base.user.id, other.course.id, 9900, daysAgo(2));
+
+      expect(getInstructorSummary(null, "all")).toMatchObject({
+        totalStudents: 3,
+        totalRevenue: 18900,
+      });
+      expect(getInstructorSummary(null, "30d")).toMatchObject({
+        totalStudents: 2,
+        totalRevenue: 14900,
+      });
+    });
+
     it("counts a team purchase once and coupon redemptions as students without revenue", () => {
       const buyer = createStudent();
       const redeemerA = createStudent();
@@ -578,6 +596,35 @@ describe("analyticsService", () => {
         value: 7500,
       });
     });
+
+    it("spans every instructor's courses platform-wide when no instructor is given", () => {
+      const other = createInstructorWithCourse();
+
+      buy(base.user.id, base.course.id, 5000, daysAgo(0));
+      buy(base.user.id, other.course.id, 9900, daysAgo(60)); // 14 Jan
+
+      expect(getRevenueTrend(null, "all")).toEqual([
+        { bucket: "2026-01", value: 9900 },
+        { bucket: "2026-02", value: 0 },
+        { bucket: "2026-03", value: 5000 },
+      ]);
+      expect(getEnrollmentTrend(null, "all")).toEqual([
+        { bucket: "2026-01", value: 1 },
+        { bucket: "2026-02", value: 0 },
+        { bucket: "2026-03", value: 1 },
+      ]);
+    });
+
+    it("starts an instructor's all-time trend at their own first activity, not the platform's", () => {
+      const other = createInstructorWithCourse();
+
+      buy(base.user.id, base.course.id, 5000, daysAgo(0));
+      buy(base.user.id, other.course.id, 9900, daysAgo(60));
+
+      expect(getRevenueTrend(base.instructor.id, "all")).toEqual([
+        { bucket: "2026-03", value: 5000 },
+      ]);
+    });
   });
 
   describe("getCourseTable", () => {
@@ -674,9 +721,17 @@ describe("analyticsService", () => {
       );
     });
 
-    it("includes every course platform-wide when no instructor is given", () => {
-      createInstructorWithCourse();
-      expect(getCourseTable(null, "all")).toHaveLength(2);
+    it("includes every course platform-wide with its instructor when no instructor is given", () => {
+      const other = createInstructorWithCourse();
+
+      const rows = getCourseTable(null, "all");
+      expect(rows).toHaveLength(2);
+      expect(rows.find((row) => row.courseId === base.course.id)).toMatchObject(
+        { instructor: { id: base.instructor.id, name: base.instructor.name } }
+      );
+      expect(rows.find((row) => row.courseId === other.course.id)).toMatchObject(
+        { instructor: { id: other.instructor.id, name: other.instructor.name } }
+      );
     });
   });
 

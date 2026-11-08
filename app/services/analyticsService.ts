@@ -26,6 +26,7 @@ import {
   quizOptions,
   quizQuestions,
   quizzes,
+  users,
   videoWatchEvents,
 } from "~/db/schema";
 import { MAX_RATING, MIN_RATING } from "~/lib/ratings";
@@ -36,6 +37,7 @@ import {
   questionAuthor,
 } from "~/services/commentService";
 import { VIDEO_COMPLETION_THRESHOLD } from "~/lib/video";
+import type { InstructorRef } from "~/services/userService";
 
 // ─── Analytics Service ───
 // Owns every analytics metric definition. Uses aggregate SQL so cost does not
@@ -329,6 +331,7 @@ export function getRevenueTrend(
 export type CourseTableRow = {
   courseId: number;
   title: string;
+  instructor: InstructorRef;
   students: number;
   revenue: number;
   /** Cohort enrollments that completed the course. */
@@ -424,6 +427,8 @@ export function getCourseTable(
     .select({
       courseId: courses.id,
       title: courses.title,
+      instructorId: users.id,
+      instructorName: users.name,
       students: sql<number>`coalesce(${studentCounts.students}, 0)`,
       revenue: sql<number>`coalesce(${revenueTotals.revenue}, 0)`,
       completed: sql<number>`coalesce(${studentCounts.completed}, 0)`,
@@ -432,6 +437,7 @@ export function getCourseTable(
       ratingCount: sql<number>`coalesce(${ratings.count}, 0)`,
     })
     .from(courses)
+    .innerJoin(users, eq(users.id, courses.instructorId))
     .leftJoin(studentCounts, eq(studentCounts.courseId, courses.id))
     .leftJoin(revenueTotals, eq(revenueTotals.courseId, courses.id))
     .leftJoin(quizAverages, eq(quizAverages.courseId, courses.id))
@@ -439,11 +445,21 @@ export function getCourseTable(
     .where(instructorScope(instructorId))
     .orderBy(courses.title)
     .all()
-    .map(({ completed, ratingAverage, ratingCount, ...row }) => ({
-      ...row,
-      completion: { count: completed, total: row.students },
-      rating: { average: ratingAverage, count: ratingCount },
-    }));
+    .map(
+      ({
+        completed,
+        ratingAverage,
+        ratingCount,
+        instructorId,
+        instructorName,
+        ...row
+      }) => ({
+        ...row,
+        instructor: { id: instructorId, name: instructorName },
+        completion: { count: completed, total: row.students },
+        rating: { average: ratingAverage, count: ratingCount },
+      })
+    );
 }
 
 // ─── Course Analytics ───

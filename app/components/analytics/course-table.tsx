@@ -11,9 +11,15 @@ interface CourseTableProps {
   rows: CourseTableRow[];
   /** Carried into each row's course analytics link. */
   range: AnalyticsRange;
+  /** Adds an Instructor column — for platform-wide (admin) views. */
+  showInstructor?: boolean;
 }
 
-export function CourseTable({ rows, range }: CourseTableProps) {
+export function CourseTable({
+  rows,
+  range,
+  showInstructor = false,
+}: CourseTableProps) {
   return (
     <Card>
       <CardHeader>
@@ -29,6 +35,9 @@ export function CourseTable({ rows, range }: CourseTableProps) {
             <thead>
               <tr className="border-b text-left text-muted-foreground">
                 <th className="py-2 font-medium">Course</th>
+                {showInstructor && (
+                  <th className="py-2 font-medium">Instructor</th>
+                )}
                 <th className="py-2 text-right font-medium">Students</th>
                 <th className="py-2 text-right font-medium">Revenue</th>
                 <th className="py-2 text-right font-medium">Completion</th>
@@ -47,6 +56,9 @@ export function CourseTable({ rows, range }: CourseTableProps) {
                       {row.title}
                     </Link>
                   </td>
+                  {showInstructor && (
+                    <td className="py-2">{row.instructor.name}</td>
+                  )}
                   <td className="py-2 text-right tabular-nums">
                     {row.students}
                   </td>

@@ -50,6 +50,10 @@ import { COURSES, USERS } from "../e2e/data";
 //   Advanced: no videos, no ratings, no questions
 //   Dashboard: average rating 4.0 (only Intro rated), 1 unanswered question;
 //     Bob: no ratings, 0 unanswered
+//
+// Admin analytics (platform-wide, all time): 7 students, $325.00; average
+//   completion 11% (mean of Intro 0/2, Advanced 1/3, Cooking 0/2); average
+//   rating 4.0; 1 unanswered question. Filtered to Bob: 2 students, $150.00.
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
