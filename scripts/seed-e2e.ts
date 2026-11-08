@@ -31,7 +31,7 @@ import { COURSES, USERS } from "../e2e/data";
 //   Bob, all time: 2 students, $150.00 (Kim 1d ago, Max 200d ago)
 //
 // Course analytics (Alice, all time):
-//   Average completion 20% (Kim completed Advanced Testing; 1 of 5)
+//   Average completion 17%: mean of Intro 0/2 and Advanced 1/3 (Kim)
 //   Intro to Testing: 2 purchased; completion 0/2; avg progress 25%;
 //     drop-off "Why Test?" 1/2, "Check Your Understanding" 0/2;
 //     quiz "Testing Basics": best scores 100% (Sam 1 attempt, Lee 2 —

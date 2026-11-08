@@ -14,7 +14,8 @@ test.describe("course analytics", () => {
     await loginAs("instructor");
     await page.goto("/instructor/dashboard");
 
-    await expect(page.getByTestId("average-completion")).toHaveText("20%");
+    // Mean of per-course rates: (Intro 0/2 + Advanced 1/3) / 2.
+    await expect(page.getByTestId("average-completion")).toHaveText("17%");
 
     const table = page.getByRole("table", { name: "Course analytics" });
     const intro = table.getByRole("row", {

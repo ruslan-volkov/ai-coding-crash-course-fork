@@ -15,7 +15,7 @@ import { CourseTable } from "~/components/analytics/course-table";
 import { Button } from "~/components/ui/button";
 import { AlertTriangle, CheckCircle2, DollarSign, Users } from "lucide-react";
 import { formatCurrency } from "~/lib/utils";
-import { formatCount, formatRatio } from "~/components/analytics/format";
+import { formatCount, formatPercent } from "~/components/analytics/format";
 
 // ─── Instructor Dashboard ───
 // Cross-course analytics for the signed-in instructor. Admins have their own
@@ -73,7 +73,7 @@ export default function InstructorDashboard({
         />
         <StatCard
           label="Average completion"
-          value={formatRatio(summary.completion)}
+          value={formatPercent(summary.averageCompletion)}
           icon={<CheckCircle2 className="size-4" />}
           testId="average-completion"
         />

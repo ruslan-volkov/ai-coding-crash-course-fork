@@ -325,12 +325,14 @@ describe("analyticsService", () => {
         totalRevenue: 10000,
       });
     });
-    it("pools course completion across the instructor's courses for the cohort in range", () => {
+    it("averages each course's own completion rate for the cohort in range, skipping courses with no students", () => {
       const other = createInstructorWithCourse();
       const secondCourse = createCourse(base.instructor.id);
+      createCourse(base.instructor.id); // no students: no rate, not a zero
       const second = createStudent();
       const third = createStudent();
 
+      // base.course: 1 of 1 completed. secondCourse: 1 of 2 (all time).
       enroll(base.user.id, base.course.id, daysAgo(2));
       markCourseCompleted(base.user.id, base.course.id);
       enroll(second.id, secondCourse.id, daysAgo(3));
@@ -339,22 +341,26 @@ describe("analyticsService", () => {
       enroll(base.user.id, other.course.id, daysAgo(1));
       markCourseCompleted(base.user.id, other.course.id);
 
+      // (1 + 0.5) / 2 — pooling would give 2/3.
       expect(
-        getInstructorSummary(base.instructor.id, "all").completion
-      ).toEqual({
-        count: 2,
-        total: 3,
-      });
+        getInstructorSummary(base.instructor.id, "all").averageCompletion
+      ).toBeCloseTo(0.75);
+      // 30d cohort: base.course 1/1, secondCourse 0/1.
       expect(
-        getInstructorSummary(base.instructor.id, "30d").completion
-      ).toEqual({
-        count: 1,
-        total: 2,
-      });
-      expect(getInstructorSummary(null, "all").completion).toEqual({
-        count: 3,
-        total: 4,
-      });
+        getInstructorSummary(base.instructor.id, "30d").averageCompletion
+      ).toBeCloseTo(0.5);
+      // Platform-wide adds other.course at 1/1: (1 + 0.5 + 1) / 3.
+      expect(getInstructorSummary(null, "all").averageCompletion).toBeCloseTo(
+        2.5 / 3
+      );
+    });
+
+    it("has no average completion when no course has students in range", () => {
+      enroll(base.user.id, base.course.id, daysAgo(40));
+
+      expect(
+        getInstructorSummary(base.instructor.id, "7d").averageCompletion
+      ).toBeNull();
     });
   });
 

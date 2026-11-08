@@ -27,7 +27,8 @@ import {
 // Definitions:
 // - Students = enrollments, filtered by enrolledAt.
 // - Completion = enrollments with completedAt / enrollments, for the cohort
-//   that enrolled in range.
+//   that enrolled in range. Average completion across courses is the mean of
+//   each course's own rate (not pooled), over courses with students in range.
 // - Revenue = gross sum of purchases.amountPaid in cents, filtered by
 //   purchases.createdAt. A team purchase is one purchase row, so it counts once
 //   at purchase time; coupon redemptions create enrollments but no purchase.
@@ -89,10 +90,12 @@ export function getInstructorSummary(
   instructorId: number | null,
   range: AnalyticsRange
 ) {
-  const studentRow = db
+  const perCourse = db
     .select({
-      count: sql<number>`count(*)`,
-      completed: completedCount(enrollments.completedAt),
+      students: sql<number>`count(*)`.as("students"),
+      rate: sql<number>`1.0 * ${completedCount(enrollments.completedAt)} / count(*)`.as(
+        "rate"
+      ),
     })
     .from(enrollments)
     .innerJoin(courses, eq(courses.id, enrollments.courseId))
@@ -102,6 +105,17 @@ export function getInstructorSummary(
         sinceRangeStart(enrollments.enrolledAt, range)
       )
     )
+    .groupBy(enrollments.courseId)
+    .as("per_course");
+
+  // Courses without students in range have no rate, so avg() skips them by
+  // never seeing a row for them.
+  const studentRow = db
+    .select({
+      count: sql<number>`coalesce(sum(${perCourse.students}), 0)`,
+      averageCompletion: sql<number | null>`avg(${perCourse.rate})`,
+    })
+    .from(perCourse)
     .get();
 
   const revenueRow = db
@@ -116,16 +130,10 @@ export function getInstructorSummary(
     )
     .get();
 
-  const totalStudents = studentRow?.count ?? 0;
   return {
-    totalStudents,
+    totalStudents: studentRow?.count ?? 0,
     totalRevenue: revenueRow?.total ?? 0,
-    // Pooled across courses, so larger courses weigh more. The students who
-    // enrolled in range are the cohort, as on the course analytics page.
-    completion: {
-      count: studentRow?.completed ?? 0,
-      total: totalStudents,
-    } satisfies Ratio,
+    averageCompletion: studentRow?.averageCompletion ?? null,
   };
 }
 
