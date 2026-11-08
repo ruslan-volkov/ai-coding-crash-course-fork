@@ -9,7 +9,7 @@ import {
 } from "recharts";
 import type { LessonDropOffRow } from "~/services/analyticsService";
 import { Section } from "./section";
-import { formatRatio } from "./format";
+import { formatPercent, formatRatio } from "./format";
 
 interface DropOffChartProps {
   lessons: LessonDropOffRow[];
@@ -47,11 +47,11 @@ export function DropOffChart({ lessons, students }: DropOffChartProps) {
               tick={{ fontSize: 12 }}
               tickLine={false}
               axisLine={false}
-              tickFormatter={(share) => `${Math.round(share * 100)}%`}
+              tickFormatter={formatPercent}
               width={48}
             />
             <Tooltip
-              formatter={(share) => `${Math.round(Number(share) * 100)}%`}
+              formatter={(share) => formatPercent(Number(share))}
               cursor={{ fillOpacity: 0.1 }}
             />
             <Bar

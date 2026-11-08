@@ -74,6 +74,11 @@ function sinceRangeStart(
   return start === null ? undefined : gte(column, start);
 }
 
+/** Number of rows whose completion timestamp is set. */
+function completedCount(column: SQLiteColumn) {
+  return sql<number>`coalesce(sum(case when ${column} is not null then 1 else 0 end), 0)`;
+}
+
 function instructorScope(instructorId: number | null): SQL | undefined {
   return instructorId === null
     ? undefined
@@ -87,7 +92,7 @@ export function getInstructorSummary(
   const studentRow = db
     .select({
       count: sql<number>`count(*)`,
-      completed: sql<number>`coalesce(sum(case when ${enrollments.completedAt} is not null then 1 else 0 end), 0)`,
+      completed: completedCount(enrollments.completedAt),
     })
     .from(enrollments)
     .innerJoin(courses, eq(courses.id, enrollments.courseId))
@@ -290,10 +295,7 @@ export function getCourseTable(
     .select({
       courseId: enrollments.courseId,
       students: sql<number>`count(*)`.as("students"),
-      completed:
-        sql<number>`sum(case when ${enrollments.completedAt} is not null then 1 else 0 end)`.as(
-          "completed"
-        ),
+      completed: completedCount(enrollments.completedAt).as("completed"),
     })
     .from(enrollments)
     .innerJoin(courses, eq(courses.id, enrollments.courseId))
@@ -413,9 +415,10 @@ export type EnrollmentBreakdown = {
 };
 
 /**
- * Where the course's students came from. An enrollment with a matching
- * purchase is a direct purchase; otherwise one via a redeemed coupon is a
- * coupon redemption; anything else is free. Unredeemed seats are the course's
+ * Where the course's students came from. An enrollment via a redeemed coupon
+ * is a coupon redemption — even when the student also bought the seats, as a
+ * team buyer redeeming their own coupon does; otherwise one with a matching
+ * purchase is a direct purchase; anything else is free. Unredeemed seats are the course's
  * coupons nobody has redeemed yet, whenever they were bought.
  */
 export function getEnrollmentBreakdown(
@@ -428,8 +431,8 @@ export function getEnrollmentBreakdown(
   const row = db
     .select({
       total: sql<number>`count(*)`,
-      purchased: sql<number>`coalesce(sum(case when ${hasPurchase} then 1 else 0 end), 0)`,
-      couponRedeemed: sql<number>`coalesce(sum(case when not ${hasPurchase} and ${hasCoupon} then 1 else 0 end), 0)`,
+      couponRedeemed: sql<number>`coalesce(sum(case when ${hasCoupon} then 1 else 0 end), 0)`,
+      purchased: sql<number>`coalesce(sum(case when not ${hasCoupon} and ${hasPurchase} then 1 else 0 end), 0)`,
     })
     .from(enrollments)
     .where(
@@ -499,7 +502,7 @@ export function getCourseCompletion(
   const completionRow = db
     .select({
       total: sql<number>`count(*)`,
-      count: sql<number>`coalesce(sum(case when ${students.completedAt} is not null then 1 else 0 end), 0)`,
+      count: completedCount(students.completedAt),
     })
     .from(students)
     .get();
@@ -542,7 +545,12 @@ export function getLessonDropOff(
   courseId: number,
   range: AnalyticsRange
 ): LessonDropOffRow[] {
-  const total = getCourseCompletion(courseId, range).completion.total;
+  const students = cohort(courseId, range);
+  const total =
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(students)
+      .get()?.count ?? 0;
   const perLesson = cohortLessonCompletions(courseId, range);
 
   return db

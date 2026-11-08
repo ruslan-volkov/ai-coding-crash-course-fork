@@ -569,6 +569,18 @@ describe("analyticsService", () => {
       });
     });
 
+    it("counts a team buyer who redeems their own seat as a coupon redemption, not a direct purchase", () => {
+      redeemTeamSeats(base.user.id, base.course.id, [base.user.id, null]);
+
+      expect(getEnrollmentBreakdown(base.course.id, "all")).toEqual({
+        total: 1,
+        purchased: 0,
+        couponRedeemed: 1,
+        free: 0,
+        unredeemedSeats: 1,
+      });
+    });
+
     it("filters enrollments by enrollment date", () => {
       const second = createStudent();
       buy(base.user.id, base.course.id, 5000, daysAgo(2));
