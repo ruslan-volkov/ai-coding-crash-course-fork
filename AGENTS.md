@@ -12,4 +12,4 @@ Requests flow **route → service → Drizzle**. Routes own HTTP concerns and re
 
 ### Issue tracker
 
-Issues and PRDs live as GitHub issues on `ai-hero-dev/ai-coding-crash-course`, managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues are tracked in this repo's GitHub Issues (`ruslan-volkov/ai-coding-crash-course-fork`) via the `gh` CLI. See `docs/agents/issue-tracker.md`.
