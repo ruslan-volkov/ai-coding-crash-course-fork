@@ -13,9 +13,20 @@ import { RangeSelector } from "~/components/analytics/range-selector";
 import { TrendChart } from "~/components/analytics/trend-chart";
 import { CourseTable } from "~/components/analytics/course-table";
 import { Button } from "~/components/ui/button";
-import { AlertTriangle, CheckCircle2, DollarSign, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  DollarSign,
+  MessageCircleQuestion,
+  Star,
+  Users,
+} from "lucide-react";
 import { formatCurrency } from "~/lib/utils";
-import { formatCount, formatPercent } from "~/components/analytics/format";
+import {
+  formatAverage,
+  formatCount,
+  formatPercent,
+} from "~/components/analytics/format";
 
 // ─── Instructor Dashboard ───
 // Cross-course analytics for the signed-in instructor. Admins have their own
@@ -58,7 +69,7 @@ export default function InstructorDashboard({
         <RangeSelector current={range} />
       </div>
 
-      <div className="mb-6 grid gap-6 sm:grid-cols-3">
+      <div className="mb-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           label="Total students"
           value={formatCount(summary.totalStudents)}
@@ -76,6 +87,19 @@ export default function InstructorDashboard({
           value={formatPercent(summary.averageCompletion)}
           icon={<CheckCircle2 className="size-4" />}
           testId="average-completion"
+        />
+        <StatCard
+          label="Average rating"
+          value={formatAverage(summary.averageRating)}
+          icon={<Star className="size-4" />}
+          testId="average-rating"
+        />
+        <StatCard
+          label="Unanswered questions"
+          value={formatCount(summary.unansweredQuestions)}
+          icon={<MessageCircleQuestion className="size-4" />}
+          testId="unanswered-questions"
+          to="/instructor/questions"
         />
       </div>
 

@@ -24,19 +24,22 @@ test.describe("course analytics", () => {
     const advanced = table.getByRole("row", {
       name: new RegExp(COURSES.aliceAdvanced.title),
     });
-    // Students, revenue, completion (raw fraction: < 5), average quiz score.
+    // Students, revenue, completion (raw fraction: < 5), average quiz score,
+    // rating (average and count).
     await expect(intro.getByRole("cell")).toHaveText([
       COURSES.aliceIntro.title,
       "2",
       "$85.00",
       "0/2",
       "100%",
+      "4.0 (2)",
     ]);
     await expect(advanced.getByRole("cell")).toHaveText([
       COURSES.aliceAdvanced.title,
       "3",
       "$90.00",
       "1/3",
+      "—",
       "—",
     ]);
   });
@@ -144,6 +147,105 @@ test.describe("course analytics", () => {
     await expect(page.getByRole("region", { name: "Quizzes" })).toContainText(
       "No quizzes in this course"
     );
+  });
+
+  test("shows video watch-through, ratings and student questions with the seeded numbers", async ({
+    page,
+    loginAs,
+  }) => {
+    await loginAs("instructor");
+    await page.goto(introAnalytics);
+
+    const video = page
+      .getByRole("table", { name: "Video watch-through" })
+      .getByRole("row", { name: /Why Test\?/ });
+    // Started, finished — raw fractions: < 5 students.
+    await expect(video.getByRole("cell")).toHaveText(["Why Test?", "2/2", "1/2"]);
+
+    await expect(page.getByTestId("rating-average")).toHaveText("4.0");
+    await expect(page.getByTestId("rating-count")).toHaveText("2");
+    const ratings = page.getByRole("region", { name: "Ratings" });
+    await expect(
+      ratings.getByRole("img", { name: "Rating distribution chart" })
+    ).toBeVisible();
+    const distribution = ratings.getByRole("table", {
+      name: "Rating distribution",
+    });
+    await expect(distribution.getByRole("row", { name: /5★/ })).toContainText(
+      "1"
+    );
+    await expect(distribution.getByRole("row", { name: /4★/ })).toContainText(
+      "0"
+    );
+    await expect(distribution.getByRole("row", { name: /3★/ })).toContainText(
+      "1"
+    );
+
+    const questions = page.getByRole("region", { name: "Student questions" });
+    await expect(questions).toContainText("Questions2");
+    await expect(questions).toContainText("Unanswered1");
+    await expect(questions).toContainText("Median first reply1d");
+  });
+
+  test("filters video watch-through to the cohort that enrolled in range", async ({
+    page,
+    loginAs,
+  }) => {
+    await loginAs("instructor");
+    await page.goto(`${introAnalytics}?range=7d`);
+
+    await expect(
+      page
+        .getByRole("table", { name: "Video watch-through" })
+        .getByRole("row", { name: /Why Test\?/ })
+        .getByRole("cell")
+    ).toHaveText(["Why Test?", "1/1", "1/1"]);
+  });
+
+  test("shows empty states for a course with no videos, ratings or questions", async ({
+    page,
+    loginAs,
+  }) => {
+    await loginAs("instructor");
+    await page.goto(advancedAnalytics);
+
+    await expect(page.getByRole("region", { name: "Videos" })).toContainText(
+      "No videos in this course"
+    );
+    await expect(page.getByRole("region", { name: "Ratings" })).toContainText(
+      "No ratings yet"
+    );
+    await expect(
+      page.getByRole("region", { name: "Student questions" })
+    ).toContainText("No questions yet");
+  });
+
+  test("dashboard shows average rating and unanswered questions, linking to the Questions page", async ({
+    page,
+    loginAs,
+  }) => {
+    await loginAs("instructor");
+    await page.goto("/instructor/dashboard");
+
+    await expect(page.getByTestId("average-rating")).toHaveText("4.0");
+    await expect(page.getByTestId("unanswered-questions")).toHaveText("1");
+
+    await page.getByRole("link", { name: "Unanswered questions: 1" }).click();
+    await expect(page).toHaveURL(/\/instructor\/questions$/);
+    await expect(
+      page.getByText("Is there a recording of the live session?")
+    ).toBeVisible();
+  });
+
+  test("another instructor's dashboard has no rating and no unanswered questions", async ({
+    page,
+    loginAs,
+  }) => {
+    await loginAs("otherInstructor");
+    await page.goto("/instructor/dashboard");
+
+    await expect(page.getByTestId("average-rating")).toHaveText("—");
+    await expect(page.getByTestId("unanswered-questions")).toHaveText("0");
   });
 
   test("admins can view any course's analytics", async ({ page, loginAs }) => {

@@ -5,7 +5,7 @@ import type {
   AnalyticsRange,
   CourseTableRow,
 } from "~/services/analyticsService";
-import { formatPercent, formatRatio } from "./format";
+import { formatPercent, formatRating, formatRatio } from "./format";
 
 interface CourseTableProps {
   rows: CourseTableRow[];
@@ -33,6 +33,7 @@ export function CourseTable({ rows, range }: CourseTableProps) {
                 <th className="py-2 text-right font-medium">Revenue</th>
                 <th className="py-2 text-right font-medium">Completion</th>
                 <th className="py-2 text-right font-medium">Avg quiz score</th>
+                <th className="py-2 text-right font-medium">Rating</th>
               </tr>
             </thead>
             <tbody>
@@ -57,6 +58,9 @@ export function CourseTable({ rows, range }: CourseTableProps) {
                   </td>
                   <td className="py-2 text-right tabular-nums">
                     {formatPercent(row.averageQuizScore)}
+                  </td>
+                  <td className="py-2 text-right tabular-nums">
+                    {formatRating(row.rating)}
                   </td>
                 </tr>
               ))}

@@ -40,6 +40,16 @@ import { COURSES, USERS } from "../e2e/data";
 //     no lessons, no quizzes
 //   7d cohort, Intro: Sam only — completion 0/1, progress 50%, "Why Test?"
 //     1/1, quiz 1 attempt, question 1/1
+//
+// Videos, ratings & questions (Alice):
+//   Intro "Why Test?" (8 min video): started 2/2 (Sam, Lee), finished 1/2
+//     (Sam reached 480s; Lee 120s = 25%); 7d cohort: started 1/1, finished 1/1
+//   Intro ratings: 5 (Sam) and 3 (Lee) — average 4.0, 2 ratings
+//   Intro questions: 2; unanswered 1 (Lee's); median first reply 1d (Sam's,
+//     answered by Alice a day later)
+//   Advanced: no videos, no ratings, no questions
+//   Dashboard: average rating 4.0 (only Intro rated), 1 unanswered question;
+//     Bob: no ratings, 0 unanswered
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -4,9 +4,12 @@ import { requireStaff } from "~/lib/access.server";
 import { getCourseById } from "~/services/courseService";
 import {
   getCourseCompletion,
+  getCourseQuestions,
+  getCourseRatings,
   getEnrollmentBreakdown,
   getLessonDropOff,
   getQuizPerformance,
+  getVideoWatchThrough,
   parseRange,
 } from "~/services/analyticsService";
 import { StatCard } from "~/components/analytics/stat-card";
@@ -14,6 +17,9 @@ import { RangeSelector } from "~/components/analytics/range-selector";
 import { EnrollmentBreakdown } from "~/components/analytics/enrollment-breakdown";
 import { DropOffChart } from "~/components/analytics/drop-off-chart";
 import { QuizPerformance } from "~/components/analytics/quiz-performance";
+import { VideoWatchThrough } from "~/components/analytics/video-watch-through";
+import { RatingSummary } from "~/components/analytics/rating-summary";
+import { QuestionSummary } from "~/components/analytics/question-summary";
 import {
   formatCount,
   formatPercent,
@@ -31,8 +37,8 @@ import {
 // ─── Course Analytics ───
 // Per-course drill-down from the dashboard course table. The owning instructor
 // and admins may view it. Enrollment counts filter by enrollment date;
-// completion, progress, drop-off and quiz metrics describe the cohort that
-// enrolled in the range.
+// completion, progress, drop-off, quiz and video metrics describe the cohort
+// that enrolled in the range. Ratings and questions are all time.
 
 export function meta({ loaderData }: Route.MetaArgs) {
   const title = loaderData?.course.title ?? "Course";
@@ -65,12 +71,25 @@ export async function loader({ params, request, url }: Route.LoaderArgs) {
     completion: getCourseCompletion(courseId, range),
     dropOff: getLessonDropOff(courseId, range),
     quizzes: getQuizPerformance(courseId, range),
+    videos: getVideoWatchThrough(courseId, range),
+    ratings: getCourseRatings(courseId),
+    questions: getCourseQuestions(courseId),
   };
 }
 
 export default function CourseAnalytics({ loaderData }: Route.ComponentProps) {
-  const { course, isAdmin, range, enrollments, completion, dropOff, quizzes } =
-    loaderData;
+  const {
+    course,
+    isAdmin,
+    range,
+    enrollments,
+    completion,
+    dropOff,
+    quizzes,
+    videos,
+    ratings,
+    questions,
+  } = loaderData;
 
   return (
     <div className="mx-auto max-w-7xl p-6 lg:p-8">
@@ -121,7 +140,21 @@ export default function CourseAnalytics({ loaderData }: Route.ComponentProps) {
         </div>
       </div>
 
-      <QuizPerformance quizzes={quizzes} />
+      <div className="mb-6">
+        <QuizPerformance quizzes={quizzes} />
+      </div>
+
+      <div className="mb-6">
+        <VideoWatchThrough
+          videos={videos}
+          students={completion.completion.total}
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <RatingSummary ratings={ratings} />
+        <QuestionSummary questions={questions} />
+      </div>
     </div>
   );
 }

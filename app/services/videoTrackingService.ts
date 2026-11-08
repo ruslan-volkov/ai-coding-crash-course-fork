@@ -1,6 +1,7 @@
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "~/db";
 import { videoWatchEvents, lessons } from "~/db/schema";
+import { VIDEO_COMPLETION_THRESHOLD } from "~/lib/video";
 
 // ─── Video Tracking Service ───
 // Logs video watch events and calculates watch progress per lesson.
@@ -110,7 +111,7 @@ export function hasUserCompletedVideo(
   userId: number,
   lessonId: number,
   videoDurationSeconds: number,
-  completionThreshold: number
+  completionThreshold: number = VIDEO_COMPLETION_THRESHOLD
 ) {
   const progress = calculateWatchProgress(
     userId,

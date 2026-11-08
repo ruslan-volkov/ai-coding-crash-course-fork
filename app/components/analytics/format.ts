@@ -29,3 +29,28 @@ export function formatCount(value: number): string {
 export function formatAverage(value: number | null): string {
   return value === null ? EMPTY : value.toFixed(1);
 }
+
+/** A duration in seconds, coarsely ("45m", "3h 20m", "2d 4h"), or an em dash when there is none. */
+export function formatDuration(seconds: number | null): string {
+  if (seconds === null) return EMPTY;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    const rest = minutes % 60;
+    return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+  }
+  const days = Math.floor(hours / 24);
+  const rest = hours % 24;
+  return rest === 0 ? `${days}d` : `${days}d ${rest}h`;
+}
+
+/** A mean rating with its count ("4.0 (2)"), or an em dash when unrated. */
+export function formatRating(rating: {
+  average: number | null;
+  count: number;
+}): string {
+  return rating.average === null
+    ? EMPTY
+    : `${formatAverage(rating.average)} (${rating.count})`;
+}

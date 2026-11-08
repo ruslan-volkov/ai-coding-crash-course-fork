@@ -8,6 +8,7 @@ import {
   sql,
   desc,
   asc,
+  type SQL,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "~/db";
@@ -268,6 +269,61 @@ export type QueuedQuestion = {
   authorAvatarUrl: string | null;
 };
 
+// ─── Student Questions ───
+// The one definition of a student question and of "answered", shared by the
+// instructor's queue and analytics. Each piece works in a query over
+// `comments` joined to `questionAuthor` (on comments.userId) and to `courses`
+// (via lessons and modules).
+
+/** The author of the question; join it on comments.userId. */
+export const questionAuthor = alias(users, "question_author");
+
+const reply = alias(comments, "reply");
+const replyAuthor = alias(users, "reply_author");
+
+/** A live reply to the outer question by staff: its course's instructor or an admin. */
+function isStaffReply(): SQL {
+  return and(
+    eq(reply.parentId, comments.id),
+    isNull(reply.deletedAt),
+    or(
+      eq(replyAuthor.role, UserRole.Admin),
+      eq(reply.userId, courses.instructorId)
+    )
+  )!;
+}
+
+/** A live top-level comment not written by staff. */
+export function isStudentQuestion(): SQL {
+  return and(
+    isNull(comments.parentId),
+    isNull(comments.deletedAt),
+    // Staff asking their own question shouldn't queue up as work for themselves.
+    ne(questionAuthor.role, UserRole.Admin),
+    ne(comments.userId, courses.instructorId)
+  )!;
+}
+
+/** No staff reply to the question yet. */
+export function isUnanswered(): SQL {
+  return notExists(
+    db
+      .select({ one: sql`1` })
+      .from(reply)
+      .innerJoin(replyAuthor, eq(replyAuthor.id, reply.userId))
+      .where(isStaffReply())
+  );
+}
+
+/** When staff first replied to the question; null while unanswered. */
+export function firstStaffReplyAt(): SQL<string | null> {
+  return sql<string | null>`(${db
+    .select({ at: sql`min(${reply.createdAt})` })
+    .from(reply)
+    .innerJoin(replyAuthor, eq(replyAuthor.id, reply.userId))
+    .where(isStaffReply())})`;
+}
+
 /**
  * Questions still waiting on an answer, newest first.
  *
@@ -279,34 +335,7 @@ export type QueuedQuestion = {
 export function getUnansweredQuestions(
   instructorId: number | null
 ): QueuedQuestion[] {
-  const author = alias(users, "author");
-  const reply = alias(comments, "reply");
-  const replyAuthor = alias(users, "reply_author");
-
-  // Correlated: matches a live reply, by staff, to the outer question.
-  const staffReply = db
-    .select({ one: sql`1` })
-    .from(reply)
-    .innerJoin(replyAuthor, eq(replyAuthor.id, reply.userId))
-    .where(
-      and(
-        eq(reply.parentId, comments.id),
-        isNull(reply.deletedAt),
-        or(
-          eq(replyAuthor.role, UserRole.Admin),
-          eq(reply.userId, courses.instructorId)
-        )
-      )
-    );
-
-  const conditions = [
-    isNull(comments.parentId),
-    isNull(comments.deletedAt),
-    // Staff asking their own question shouldn't queue up as work for themselves.
-    ne(author.role, UserRole.Admin),
-    ne(comments.userId, courses.instructorId),
-    notExists(staffReply),
-  ];
+  const conditions = [isStudentQuestion(), isUnanswered()];
 
   if (instructorId !== null) {
     conditions.push(eq(courses.instructorId, instructorId));
@@ -321,12 +350,12 @@ export function getUnansweredQuestions(
       lessonTitle: lessons.title,
       courseTitle: courses.title,
       courseSlug: courses.slug,
-      authorId: author.id,
-      authorName: author.name,
-      authorAvatarUrl: author.avatarUrl,
+      authorId: questionAuthor.id,
+      authorName: questionAuthor.name,
+      authorAvatarUrl: questionAuthor.avatarUrl,
     })
     .from(comments)
-    .innerJoin(author, eq(comments.userId, author.id))
+    .innerJoin(questionAuthor, eq(comments.userId, questionAuthor.id))
     .innerJoin(lessons, eq(comments.lessonId, lessons.id))
     .innerJoin(modules, eq(lessons.moduleId, modules.id))
     .innerJoin(courses, eq(modules.courseId, courses.id))

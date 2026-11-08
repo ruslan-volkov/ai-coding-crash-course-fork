@@ -21,8 +21,12 @@ import {
   getEnrollmentTrend,
   getInstructorSummary,
   getRevenueTrend,
+  getCourseQuestions,
+  getCourseRatings,
+  getVideoWatchThrough,
   parseRange,
 } from "./analyticsService";
+import { hasUserCompletedVideo } from "./videoTrackingService";
 
 // A Sunday, so weekly buckets (starting Monday) are easy to reason about.
 const NOW = new Date("2026-03-15T12:00:00.000Z");
@@ -145,6 +149,69 @@ function createLesson(moduleId: number, position: number, title: string) {
     .values({ moduleId, title, position })
     .returning()
     .get();
+}
+
+function createVideoLesson(
+  moduleId: number,
+  position: number,
+  title: string,
+  durationMinutes: number | null
+) {
+  return testDb
+    .insert(schema.lessons)
+    .values({
+      moduleId,
+      title,
+      position,
+      videoUrl: "https://www.youtube.com/watch?v=abc",
+      durationMinutes,
+    })
+    .returning()
+    .get();
+}
+
+/** A watch event at the given position (seconds). */
+function watch(userId: number, lessonId: number, positionSeconds: number) {
+  testDb
+    .insert(schema.videoWatchEvents)
+    .values({ userId, lessonId, eventType: "progress", positionSeconds })
+    .run();
+}
+
+function rate(userId: number, courseId: number, rating: number) {
+  testDb.insert(schema.courseRatings).values({ userId, courseId, rating }).run();
+}
+
+function createAdmin() {
+  emailCounter++;
+  return testDb
+    .insert(schema.users)
+    .values({
+      name: `Admin ${emailCounter}`,
+      email: `admin${emailCounter}@example.com`,
+      role: schema.UserRole.Admin,
+    })
+    .returning()
+    .get();
+}
+
+/** A comment on the lesson at the given time; a parent id makes it a reply. */
+function comment(
+  userId: number,
+  lessonId: number,
+  createdAt: string,
+  parentId: number | null = null,
+  deletedAt: string | null = null
+) {
+  return testDb
+    .insert(schema.comments)
+    .values({ userId, lessonId, parentId, body: "Hi", createdAt, deletedAt })
+    .returning()
+    .get();
+}
+
+function hoursAgo(hours: number) {
+  return new Date(NOW.getTime() - hours * 3_600_000).toISOString();
 }
 
 function completeLesson(userId: number, lessonId: number) {
@@ -325,6 +392,51 @@ describe("analyticsService", () => {
         totalRevenue: 10000,
       });
     });
+    it("averages each course's own mean rating, skipping unrated courses, regardless of range", () => {
+      const other = createInstructorWithCourse();
+      const secondCourse = createCourse(base.instructor.id);
+      createCourse(base.instructor.id); // unrated: not a zero
+      const [a, b, c] = [createStudent(), createStudent(), createStudent()];
+
+      // base.course: 5. secondCourse: (4 + 2 + 3) / 3 = 3. Pooled would be 3.5.
+      rate(a.id, base.course.id, 5);
+      rate(a.id, secondCourse.id, 4);
+      rate(b.id, secondCourse.id, 2);
+      rate(c.id, secondCourse.id, 3);
+      rate(a.id, other.course.id, 1);
+
+      expect(
+        getInstructorSummary(base.instructor.id, "7d").averageRating
+      ).toBeCloseTo(4);
+      // Platform-wide adds other.course at 1: (5 + 3 + 1) / 3.
+      expect(getInstructorSummary(null, "all").averageRating).toBeCloseTo(3);
+    });
+
+    it("has no average rating when no course is rated", () => {
+      expect(
+        getInstructorSummary(base.instructor.id, "all").averageRating
+      ).toBeNull();
+    });
+
+    it("counts unanswered student questions on the instructor's courses, regardless of range", () => {
+      const other = createInstructorWithCourse();
+      const lesson = createLesson(createModule(base.course.id, 1).id, 1, "L");
+      const otherLesson = createLesson(
+        createModule(other.course.id, 1).id,
+        1,
+        "O"
+      );
+      comment(base.user.id, lesson.id, daysAgo(60));
+      const answered = comment(base.user.id, lesson.id, daysAgo(2));
+      comment(base.instructor.id, lesson.id, daysAgo(1), answered.id);
+      comment(base.user.id, otherLesson.id, daysAgo(2));
+
+      expect(
+        getInstructorSummary(base.instructor.id, "7d").unansweredQuestions
+      ).toBe(1);
+      expect(getInstructorSummary(null, "all").unansweredQuestions).toBe(2);
+    });
+
     it("averages each course's own completion rate for the cohort in range, skipping courses with no students", () => {
       const other = createInstructorWithCourse();
       const secondCourse = createCourse(base.instructor.id);
@@ -545,6 +657,21 @@ describe("analyticsService", () => {
         completion: { count: 1, total: 2 },
         averageQuizScore: 0.5, // (1 + 0 + 0.5) / 3
       });
+    });
+
+    it("adds each course's rating average and count", () => {
+      const rated = createCourse(base.instructor.id);
+      const second = createStudent();
+      rate(base.user.id, rated.id, 5);
+      rate(second.id, rated.id, 2);
+
+      const rows = getCourseTable(base.instructor.id, "7d");
+      expect(rows.find((row) => row.courseId === rated.id)).toMatchObject({
+        rating: { average: 3.5, count: 2 },
+      });
+      expect(rows.find((row) => row.courseId === base.course.id)).toMatchObject(
+        { rating: { average: null, count: 0 } }
+      );
     });
 
     it("includes every course platform-wide when no instructor is given", () => {
@@ -875,6 +1002,232 @@ describe("analyticsService", () => {
       const mod = createModule(base.course.id, 1);
       createLesson(mod.id, 1, "Plain lesson");
       expect(getQuizPerformance(base.course.id, "all")).toEqual([]);
+    });
+  });
+
+  describe("getVideoWatchThrough", () => {
+    it("reports, per video lesson in course order, the share of the cohort that started and finished it", () => {
+      const mod2 = createModule(base.course.id, 2);
+      const mod1 = createModule(base.course.id, 1);
+      const later = createVideoLesson(mod2.id, 1, "Later video", 10);
+      createLesson(mod1.id, 1, "Reading only");
+      const first = createVideoLesson(mod1.id, 2, "First video", 10);
+
+      const [a, b, c] = [createStudent(), createStudent(), createStudent()];
+      const outsider = createStudent();
+      for (const s of [a, b, c]) enroll(s.id, base.course.id, daysAgo(5));
+
+      // 10 min = 600s. 540s = 90% (finished); 530s = 88% (started only).
+      watch(a.id, first.id, 0);
+      watch(a.id, first.id, 540);
+      watch(b.id, first.id, 530);
+      watch(a.id, later.id, 60);
+      // Not enrolled: ignored.
+      watch(outsider.id, first.id, 600);
+
+      expect(getVideoWatchThrough(base.course.id, "all")).toEqual([
+        {
+          lessonId: first.id,
+          title: "First video",
+          started: { count: 2, total: 3 },
+          finished: { count: 1, total: 3 },
+        },
+        {
+          lessonId: later.id,
+          title: "Later video",
+          started: { count: 1, total: 3 },
+          finished: { count: 0, total: 3 },
+        },
+      ]);
+    });
+
+    it("counts a video as finished exactly when per-user video completion does", () => {
+      const mod = createModule(base.course.id, 1);
+      const video = createVideoLesson(mod.id, 1, "Video", 10);
+      const positions = [536, 537, 540, 600, 700];
+      const students = positions.map((position) => {
+        const student = createStudent();
+        enroll(student.id, base.course.id, daysAgo(5));
+        watch(student.id, video.id, position);
+        return student;
+      });
+
+      const finished = students.filter((s) =>
+        hasUserCompletedVideo(s.id, video.id, 600)
+      ).length;
+      // 536s rounds to 89%; 537s rounds to 90%.
+      expect(finished).toBe(4);
+      expect(getVideoWatchThrough(base.course.id, "all")[0].finished).toEqual({
+        count: 4,
+        total: 5,
+      });
+    });
+
+    it("never counts a video without a duration as finished", () => {
+      const mod = createModule(base.course.id, 1);
+      const video = createVideoLesson(mod.id, 1, "Video", null);
+      enroll(base.user.id, base.course.id, daysAgo(5));
+      watch(base.user.id, video.id, 600);
+
+      expect(getVideoWatchThrough(base.course.id, "all")[0]).toMatchObject({
+        started: { count: 1, total: 1 },
+        finished: { count: 0, total: 1 },
+      });
+    });
+
+    it("describes only the cohort that enrolled in the range", () => {
+      const mod = createModule(base.course.id, 1);
+      const video = createVideoLesson(mod.id, 1, "Video", 10);
+      const early = createStudent();
+      enroll(base.user.id, base.course.id, daysAgo(3));
+      enroll(early.id, base.course.id, daysAgo(40));
+      watch(early.id, video.id, 600);
+
+      expect(getVideoWatchThrough(base.course.id, "30d")[0]).toMatchObject({
+        started: { count: 0, total: 1 },
+        finished: { count: 0, total: 1 },
+      });
+    });
+
+    it("is empty for a course with no video lessons", () => {
+      const mod = createModule(base.course.id, 1);
+      createLesson(mod.id, 1, "Reading only");
+      enroll(base.user.id, base.course.id, daysAgo(5));
+
+      expect(getVideoWatchThrough(base.course.id, "all")).toEqual([]);
+    });
+  });
+
+  describe("getCourseRatings", () => {
+    it("reports the average, count and a 1–5 distribution", () => {
+      const [a, b, c] = [createStudent(), createStudent(), createStudent()];
+      rate(base.user.id, base.course.id, 5);
+      rate(a.id, base.course.id, 5);
+      rate(b.id, base.course.id, 4);
+      rate(c.id, base.course.id, 1);
+      // Another course's rating is ignored.
+      rate(a.id, createInstructorWithCourse().course.id, 2);
+
+      expect(getCourseRatings(base.course.id)).toEqual({
+        average: 3.75,
+        count: 4,
+        distribution: [
+          { rating: 1, count: 1 },
+          { rating: 2, count: 0 },
+          { rating: 3, count: 0 },
+          { rating: 4, count: 1 },
+          { rating: 5, count: 2 },
+        ],
+      });
+    });
+
+    it("has no average and an all-zero distribution with no ratings", () => {
+      expect(getCourseRatings(base.course.id)).toEqual({
+        average: null,
+        count: 0,
+        distribution: [1, 2, 3, 4, 5].map((rating) => ({ rating, count: 0 })),
+      });
+    });
+  });
+
+  describe("getCourseQuestions", () => {
+    let lessonId: number;
+    beforeEach(() => {
+      lessonId = createLesson(createModule(base.course.id, 1).id, 1, "L").id;
+    });
+
+    it("counts top-level student questions, and those with no live staff reply as unanswered", () => {
+      const admin = createAdmin();
+      const other = createStudent();
+      const byInstructor = comment(base.user.id, lessonId, hoursAgo(50));
+      comment(base.instructor.id, lessonId, hoursAgo(49), byInstructor.id);
+      const byAdmin = comment(base.user.id, lessonId, hoursAgo(50));
+      comment(admin.id, lessonId, hoursAgo(49), byAdmin.id);
+      // Unanswered: a student's reply and a deleted staff reply don't count.
+      const studentReply = comment(base.user.id, lessonId, hoursAgo(50));
+      comment(other.id, lessonId, hoursAgo(49), studentReply.id);
+      const deletedReply = comment(base.user.id, lessonId, hoursAgo(50));
+      comment(
+        base.instructor.id,
+        lessonId,
+        hoursAgo(49),
+        deletedReply.id,
+        hoursAgo(1)
+      );
+      // Not questions: deleted, or asked by staff.
+      comment(other.id, lessonId, hoursAgo(5), null, hoursAgo(1));
+      comment(base.instructor.id, lessonId, hoursAgo(5));
+      comment(admin.id, lessonId, hoursAgo(5));
+      // Another course's question.
+      const elsewhere = createInstructorWithCourse().course;
+      comment(
+        other.id,
+        createLesson(createModule(elsewhere.id, 1).id, 1, "X").id,
+        hoursAgo(5)
+      );
+
+      expect(getCourseQuestions(base.course.id)).toMatchObject({
+        total: 4,
+        unanswered: 2,
+      });
+    });
+
+    it("reports the median time from question to first staff reply over answered questions", () => {
+      for (const [askedAgo, firstReplyAgo] of [
+        [10, 9], // 1h
+        [10, 7], // 3h
+        [30, 20], // 10h
+      ]) {
+        const question = comment(base.user.id, lessonId, hoursAgo(askedAgo));
+        comment(
+          base.instructor.id,
+          lessonId,
+          hoursAgo(firstReplyAgo),
+          question.id
+        );
+        // A later staff reply does not change the first reply time.
+        comment(base.instructor.id, lessonId, hoursAgo(1), question.id);
+      }
+      // Unanswered: excluded from the median.
+      comment(base.user.id, lessonId, hoursAgo(100));
+
+      expect(getCourseQuestions(base.course.id)).toEqual({
+        total: 4,
+        unanswered: 1,
+        medianFirstReplySeconds: 3 * 3600,
+      });
+    });
+
+    it("takes the midpoint of the middle two for an even number of answered questions", () => {
+      for (const [askedAgo, replyAgo] of [
+        [10, 9],
+        [10, 6],
+      ]) {
+        const question = comment(base.user.id, lessonId, hoursAgo(askedAgo));
+        comment(base.instructor.id, lessonId, hoursAgo(replyAgo), question.id);
+      }
+
+      expect(getCourseQuestions(base.course.id).medianFirstReplySeconds).toBe(
+        2.5 * 3600
+      );
+    });
+
+    it("has no median when no question has been answered", () => {
+      comment(base.user.id, lessonId, hoursAgo(3));
+
+      expect(getCourseQuestions(base.course.id)).toEqual({
+        total: 1,
+        unanswered: 1,
+        medianFirstReplySeconds: null,
+      });
+    });
+
+    it("is all zeros for a course with no questions", () => {
+      expect(getCourseQuestions(base.course.id)).toEqual({
+        total: 0,
+        unanswered: 0,
+        medianFirstReplySeconds: null,
+      });
     });
   });
 
