@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
+import { captureAnalyticsEvents } from "~/test/analytics-events";
 
 let testDb: ReturnType<typeof createTestDb>;
 let base: ReturnType<typeof seedBaseData>;
@@ -485,5 +486,64 @@ describe("progressService", () => {
       expect(next).toBeDefined();
       expect(next!.id).toBe(lessons[0].id);
     });
+  });
+});
+
+describe("progressService analytics events", () => {
+  const events = captureAnalyticsEvents();
+
+  beforeEach(() => {
+    testDb = createTestDb();
+    base = seedBaseData(testDb);
+  });
+
+  it("publishes a lesson-progress event for the lesson's course on completion", () => {
+    const { lessons } = createModuleWithLessons(
+      base.course.id,
+      "Module 1",
+      1,
+      1
+    );
+
+    markLessonComplete(base.user.id, lessons[0].id);
+
+    expect(events).toEqual([
+      { type: "lesson-progress", courseId: base.course.id },
+    ]);
+  });
+
+  it("publishes a lesson-progress event when a lesson is started", () => {
+    const { lessons } = createModuleWithLessons(
+      base.course.id,
+      "Module 1",
+      1,
+      1
+    );
+
+    markLessonInProgress(base.user.id, lessons[0].id);
+
+    expect(events).toEqual([
+      { type: "lesson-progress", courseId: base.course.id },
+    ]);
+  });
+
+  it("publishes nothing when revisiting an already-completed lesson", () => {
+    const { lessons } = createModuleWithLessons(
+      base.course.id,
+      "Module 1",
+      1,
+      1
+    );
+    markLessonComplete(base.user.id, lessons[0].id);
+    events.length = 0;
+
+    markLessonInProgress(base.user.id, lessons[0].id);
+
+    expect(events).toEqual([]);
+  });
+
+  it("publishes nothing when the write fails", () => {
+    expect(() => markLessonComplete(base.user.id, 9999)).toThrow();
+    expect(events).toEqual([]);
   });
 });

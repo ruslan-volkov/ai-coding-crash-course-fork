@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
+import { captureAnalyticsEvents } from "~/test/analytics-events";
 
 let testDb: ReturnType<typeof createTestDb>;
 let base: ReturnType<typeof seedBaseData>;
@@ -187,5 +188,31 @@ describe("purchaseService", () => {
       expect(membership).toBeDefined();
       expect(membership!.role).toBe(schema.TeamMemberRole.Admin);
     });
+  });
+});
+
+describe("purchaseService analytics events", () => {
+  const events = captureAnalyticsEvents();
+
+  beforeEach(() => {
+    testDb = createTestDb();
+    base = seedBaseData(testDb);
+  });
+
+  it("publishes a purchase event after a purchase", () => {
+    createPurchase(base.user.id, base.course.id, 4999, "US");
+
+    expect(events).toEqual([{ type: "purchase", courseId: base.course.id }]);
+  });
+
+  it("publishes a single purchase event for a team purchase", () => {
+    createTeamPurchase(base.user.id, base.course.id, 9999, "US", 3);
+
+    expect(events).toEqual([{ type: "purchase", courseId: base.course.id }]);
+  });
+
+  it("publishes nothing when the purchase fails", () => {
+    expect(() => createPurchase(base.user.id, 9999, 4999, "US")).toThrow();
+    expect(events).toEqual([]);
   });
 });

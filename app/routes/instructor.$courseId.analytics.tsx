@@ -14,6 +14,7 @@ import {
 } from "~/services/analyticsService";
 import { StatCard } from "~/components/analytics/stat-card";
 import { RangeSelector } from "~/components/analytics/range-selector";
+import { LiveControls } from "~/components/analytics/live-controls";
 import { EnrollmentBreakdown } from "~/components/analytics/enrollment-breakdown";
 import { DropOffChart } from "~/components/analytics/drop-off-chart";
 import { QuizPerformance } from "~/components/analytics/quiz-performance";
@@ -110,7 +111,12 @@ export default function CourseAnalytics({ loaderData }: Route.ComponentProps) {
           <h1 className="text-3xl font-bold">{course.title}</h1>
           <p className="mt-1 text-muted-foreground">Course analytics</p>
         </div>
-        <RangeSelector current={range} />
+        <div className="flex flex-col items-end gap-3">
+          <LiveControls
+            streamUrl={`/api/analytics-stream?courseId=${course.id}`}
+          />
+          <RangeSelector current={range} />
+        </div>
       </div>
 
       <div className="mb-6 grid gap-6 sm:grid-cols-3">

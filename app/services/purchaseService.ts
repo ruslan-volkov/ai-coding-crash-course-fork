@@ -3,6 +3,7 @@ import { db } from "~/db";
 import { purchases } from "~/db/schema";
 import { getOrCreateTeamForUser } from "./teamService";
 import { generateCoupons } from "./couponService";
+import { publishAnalyticsEvent } from "~/lib/analytics-events.server";
 
 // ─── Purchase Service ───
 // Handles purchase records (transaction log separate from enrollments).
@@ -14,11 +15,14 @@ export function createPurchase(
   amountPaid: number,
   country: string | null
 ) {
-  return db
+  const purchase = db
     .insert(purchases)
     .values({ userId, courseId, amountPaid, country })
     .returning()
     .get();
+
+  publishAnalyticsEvent({ type: "purchase", courseId });
+  return purchase;
 }
 
 export function findPurchase(userId: number, courseId: number) {

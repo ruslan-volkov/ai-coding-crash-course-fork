@@ -92,6 +92,7 @@ const roles: Record<keyof typeof USERS, UserRole> = {
   learnerLee: UserRole.Student,
   learnerKim: UserRole.Student,
   teamBuyer: UserRole.Student,
+  newcomer: UserRole.Student,
 };
 
 for (const [key, user] of Object.entries(USERS)) {

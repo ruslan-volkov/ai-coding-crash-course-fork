@@ -11,9 +11,16 @@ export const USERS = {
   learnerLee: { id: 5, name: "Lee Learner" },
   learnerKim: { id: 6, name: "Kim Learner" },
   teamBuyer: { id: 7, name: "Max Buyer" },
+  /** No enrollments or purchases — buys courses in the live-update tests. */
+  newcomer: { id: 8, name: "Nia Newcomer" },
 } as const;
 
-export type Role = "student" | "instructor" | "otherInstructor" | "admin";
+export type Role =
+  | "student"
+  | "instructor"
+  | "otherInstructor"
+  | "admin"
+  | "newcomer";
 
 export const COURSES = {
   aliceIntro: { id: 1, title: "Intro to Testing", price: 5000 },

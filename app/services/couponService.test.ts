@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
+import { captureAnalyticsEvents } from "~/test/analytics-events";
 
 let testDb: ReturnType<typeof createTestDb>;
 let base: ReturnType<typeof seedBaseData>;
@@ -275,5 +276,35 @@ describe("couponService", () => {
 
       expect(result.ok).toBe(true);
     });
+  });
+});
+
+describe("couponService analytics events", () => {
+  const events = captureAnalyticsEvents();
+
+  beforeEach(() => {
+    testDb = createTestDb();
+    base = seedBaseData(testDb);
+  });
+
+  it("publishes a coupon-redeemed event after a redemption", () => {
+    const { team, purchase } = setupTeamAndPurchase("US");
+    const [coupon] = generateCoupons(team.id, base.course.id, purchase.id, 1);
+
+    redeemCoupon(coupon.code, createRedeemer().id, "US");
+
+    expect(events).toEqual([
+      { type: "coupon-redeemed", courseId: base.course.id },
+    ]);
+  });
+
+  it("publishes nothing when the redemption is rejected", () => {
+    const { team, purchase } = setupTeamAndPurchase("US");
+    const [coupon] = generateCoupons(team.id, base.course.id, purchase.id, 1);
+
+    const result = redeemCoupon(coupon.code, createRedeemer().id, "FR");
+
+    expect(result.ok).toBe(false);
+    expect(events).toEqual([]);
   });
 });

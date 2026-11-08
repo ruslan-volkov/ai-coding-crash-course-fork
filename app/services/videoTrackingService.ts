@@ -1,19 +1,37 @@
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "~/db";
-import { videoWatchEvents, lessons } from "~/db/schema";
+import { videoWatchEvents, lessons, modules } from "~/db/schema";
 import { VIDEO_COMPLETION_THRESHOLD } from "~/lib/video";
+import { publishAnalyticsEvent } from "~/lib/analytics-events.server";
 
 // ─── Video Tracking Service ───
 // Logs video watch events and calculates watch progress per lesson.
 // Uses positional parameters (project convention).
 
+/**
+ * Stores a watch event. Publishes video-completed only when this event takes
+ * the student's video from unfinished to finished — not on every play, pause
+ * or position update.
+ */
 export function logWatchEvent(
   userId: number,
   lessonId: number,
   eventType: string,
   positionSeconds: number
 ) {
-  return db
+  const lesson = db
+    .select({
+      durationMinutes: lessons.durationMinutes,
+      courseId: modules.courseId,
+    })
+    .from(lessons)
+    .innerJoin(modules, eq(lessons.moduleId, modules.id))
+    .where(eq(lessons.id, lessonId))
+    .get();
+  const durationSeconds = (lesson?.durationMinutes ?? 0) * 60;
+  const wasFinished = hasUserCompletedVideo(userId, lessonId, durationSeconds);
+
+  const event = db
     .insert(videoWatchEvents)
     .values({
       userId,
@@ -23,6 +41,19 @@ export function logWatchEvent(
     })
     .returning()
     .get();
+
+  if (
+    lesson &&
+    !wasFinished &&
+    hasUserCompletedVideo(userId, lessonId, durationSeconds)
+  ) {
+    publishAnalyticsEvent({
+      type: "video-completed",
+      courseId: lesson.courseId,
+    });
+  }
+
+  return event;
 }
 
 export function getWatchEvents(userId: number, lessonId: number) {

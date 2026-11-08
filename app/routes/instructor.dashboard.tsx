@@ -9,6 +9,7 @@ import {
   parseRange,
 } from "~/services/analyticsService";
 import { RangeSelector } from "~/components/analytics/range-selector";
+import { LiveControls } from "~/components/analytics/live-controls";
 import { AnalyticsOverview } from "~/components/analytics/analytics-overview";
 import { Button } from "~/components/ui/button";
 import { AlertTriangle } from "lucide-react";
@@ -51,7 +52,10 @@ export default function InstructorDashboard({
             How your courses are doing
           </p>
         </div>
-        <RangeSelector current={range} />
+        <div className="flex flex-col items-end gap-3">
+          <LiveControls streamUrl="/api/analytics-stream" />
+          <RangeSelector current={range} />
+        </div>
       </div>
 
       <AnalyticsOverview

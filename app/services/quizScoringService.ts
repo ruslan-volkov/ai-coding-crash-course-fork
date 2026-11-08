@@ -7,6 +7,8 @@ import {
   quizAttempts,
   quizAnswers,
 } from "~/db/schema";
+import { publishAnalyticsEvent } from "~/lib/analytics-events.server";
+import { getCourseIdForLesson } from "./lessonService";
 
 function scoreMultipleChoiceQuestions(quizData: any, answers: any): any {
   let correctCount = 0;
@@ -255,6 +257,11 @@ export function computeResult(
           })
           .run();
       }
+    }
+
+    const courseId = getCourseIdForLesson(quiz.lessonId);
+    if (courseId !== undefined) {
+      publishAnalyticsEvent({ type: "quiz-attempt", courseId });
     }
 
     return {

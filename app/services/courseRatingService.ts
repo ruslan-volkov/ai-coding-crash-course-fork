@@ -2,6 +2,7 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "~/db";
 import { courseRatings, courses } from "~/db/schema";
 import { MIN_RATING, MAX_RATING } from "~/lib/ratings";
+import { publishAnalyticsEvent } from "~/lib/analytics-events.server";
 
 // ─── Course Rating Service ───
 // Handles star ratings (1–5, no written review) left by students on courses.
@@ -122,28 +123,32 @@ export function rateCourse(userId: number, courseId: number, rating: number) {
 
   const existing = findRating(userId, courseId);
 
-  if (existing) {
-    return db
-      .update(courseRatings)
-      .set({ rating, updatedAt: new Date().toISOString() })
-      .where(eq(courseRatings.id, existing.id))
-      .returning()
-      .get();
-  }
+  const stored = existing
+    ? db
+        .update(courseRatings)
+        .set({ rating, updatedAt: new Date().toISOString() })
+        .where(eq(courseRatings.id, existing.id))
+        .returning()
+        .get()
+    : db
+        .insert(courseRatings)
+        .values({ userId, courseId, rating })
+        .returning()
+        .get();
 
-  return db
-    .insert(courseRatings)
-    .values({ userId, courseId, rating })
-    .returning()
-    .get();
+  publishAnalyticsEvent({ type: "rating", courseId });
+  return stored;
 }
 
 export function deleteRating(userId: number, courseId: number) {
-  return db
+  const removed = db
     .delete(courseRatings)
     .where(
       and(eq(courseRatings.userId, userId), eq(courseRatings.courseId, courseId))
     )
     .returning()
     .get();
+
+  if (removed) publishAnalyticsEvent({ type: "rating", courseId });
+  return removed;
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
+import { captureAnalyticsEvents } from "~/test/analytics-events";
 
 let testDb: ReturnType<typeof createTestDb>;
 let base: ReturnType<typeof seedBaseData>;
@@ -506,5 +507,26 @@ describe("commentService", () => {
     it("returns undefined for a lesson that does not exist", () => {
       expect(getCourseForLesson(9999)).toBeUndefined();
     });
+  });
+});
+
+describe("commentService analytics events", () => {
+  const events = captureAnalyticsEvents();
+
+  beforeEach(() => {
+    testDb = createTestDb();
+    base = seedBaseData(testDb);
+    lesson = createLesson(base.course.id, "Test Lesson");
+  });
+
+  it("publishes a comment event for the lesson's course after posting", () => {
+    createComment(base.user.id, lesson.id, null, "How?");
+
+    expect(events).toEqual([{ type: "comment", courseId: base.course.id }]);
+  });
+
+  it("publishes nothing when the comment is rejected", () => {
+    expect(() => createComment(base.user.id, lesson.id, null, "  ")).toThrow();
+    expect(events).toEqual([]);
   });
 });

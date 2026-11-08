@@ -1,6 +1,6 @@
 import { eq, and, sql, gt, lt, gte, lte } from "drizzle-orm";
 import { db } from "~/db";
-import { lessons } from "~/db/schema";
+import { lessons, modules } from "~/db/schema";
 
 // ─── Lesson Service ───
 // Handles lesson CRUD and reordering within modules.
@@ -8,6 +8,16 @@ import { lessons } from "~/db/schema";
 
 export function getLessonById(id: number) {
   return db.select().from(lessons).where(eq(lessons.id, id)).get();
+}
+
+/** The id of the course a lesson belongs to, or undefined if there's no such lesson. */
+export function getCourseIdForLesson(lessonId: number) {
+  return db
+    .select({ courseId: modules.courseId })
+    .from(lessons)
+    .innerJoin(modules, eq(lessons.moduleId, modules.id))
+    .where(eq(lessons.id, lessonId))
+    .get()?.courseId;
 }
 
 export function getLessonsByModule(moduleId: number) {

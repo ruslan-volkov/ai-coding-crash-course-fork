@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
+import { captureAnalyticsEvents } from "~/test/analytics-events";
 
 let testDb: ReturnType<typeof createTestDb>;
 let base: ReturnType<typeof seedBaseData>;
@@ -250,5 +251,30 @@ describe("enrollmentService", () => {
     it("returns empty array when course has no enrollments", () => {
       expect(getCourseEnrolledStudents(base.course.id)).toHaveLength(0);
     });
+  });
+});
+
+describe("enrollmentService analytics events", () => {
+  const events = captureAnalyticsEvents();
+
+  beforeEach(() => {
+    testDb = createTestDb();
+    base = seedBaseData(testDb);
+  });
+
+  it("publishes an enrollment event after enrolling", () => {
+    enrollUser(base.user.id, base.course.id, false, false);
+
+    expect(events).toEqual([{ type: "enrollment", courseId: base.course.id }]);
+  });
+
+  it("publishes nothing when enrolling fails", () => {
+    enrollUser(base.user.id, base.course.id, false, false);
+    events.length = 0;
+
+    expect(() =>
+      enrollUser(base.user.id, base.course.id, false, false)
+    ).toThrow();
+    expect(events).toEqual([]);
   });
 });

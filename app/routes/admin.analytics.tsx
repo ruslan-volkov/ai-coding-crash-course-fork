@@ -10,6 +10,7 @@ import {
   parseRange,
 } from "~/services/analyticsService";
 import { RangeSelector } from "~/components/analytics/range-selector";
+import { LiveControls } from "~/components/analytics/live-controls";
 import { InstructorSelector } from "~/components/analytics/instructor-selector";
 import { AnalyticsOverview } from "~/components/analytics/analytics-overview";
 import { Button } from "~/components/ui/button";
@@ -69,12 +70,21 @@ export default function AdminAnalytics({ loaderData }: Route.ComponentProps) {
             How courses are doing across the platform
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <InstructorSelector
-            instructors={instructors}
-            current={instructorId}
+        <div className="flex flex-col items-end gap-3">
+          <LiveControls
+            streamUrl={
+              instructorId === null
+                ? "/api/analytics-stream"
+                : `/api/analytics-stream?instructor=${instructorId}`
+            }
           />
-          <RangeSelector current={range} />
+          <div className="flex flex-wrap items-center gap-4">
+            <InstructorSelector
+              instructors={instructors}
+              current={instructorId}
+            />
+            <RangeSelector current={range} />
+          </div>
         </div>
       </div>
 

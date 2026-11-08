@@ -8,6 +8,7 @@ import {
   lessonProgress,
   LessonProgressStatus,
 } from "~/db/schema";
+import { publishAnalyticsEvent } from "~/lib/analytics-events.server";
 
 // ─── Enrollment Service ───
 // Handles enrollment, unenrollment, duplicate prevention, and enrollment validation.
@@ -87,6 +88,8 @@ export function enrollUser(
     .returning()
     .get();
 
+  publishAnalyticsEvent({ type: "enrollment", courseId });
+
   // sendEmail parameter accepted but not implemented (no email service — PRD out of scope)
   if (sendEmail) {
     // Would send welcome email here
@@ -101,17 +104,20 @@ export function unenrollUser(userId: number, courseId: number) {
     throw new Error("User is not enrolled in this course");
   }
 
-  return db
+  const removed = db
     .delete(enrollments)
     .where(
       and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
     )
     .returning()
     .get();
+
+  publishAnalyticsEvent({ type: "enrollment", courseId });
+  return removed;
 }
 
 export function markEnrollmentComplete(userId: number, courseId: number) {
-  return db
+  const updated = db
     .update(enrollments)
     .set({ completedAt: new Date().toISOString() })
     .where(
@@ -119,6 +125,9 @@ export function markEnrollmentComplete(userId: number, courseId: number) {
     )
     .returning()
     .get();
+
+  if (updated) publishAnalyticsEvent({ type: "enrollment", courseId });
+  return updated;
 }
 
 export function getUserEnrolledCourses(userId: number) {

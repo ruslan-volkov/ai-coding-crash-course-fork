@@ -8,6 +8,8 @@ import {
   enrollments,
   LessonProgressStatus,
 } from "~/db/schema";
+import { publishAnalyticsEvent } from "~/lib/analytics-events.server";
+import { getCourseIdForLesson } from "./lessonService";
 
 // ─── Progress Service ───
 // Handles lesson completion tracking and course progress calculation.
@@ -55,7 +57,20 @@ export function getLessonProgressForCourse(userId: number, courseId: number) {
     .all();
 }
 
+function publishLessonProgress(lessonId: number) {
+  const courseId = getCourseIdForLesson(lessonId);
+  if (courseId !== undefined) {
+    publishAnalyticsEvent({ type: "lesson-progress", courseId });
+  }
+}
+
 export function markLessonComplete(userId: number, lessonId: number) {
+  const progress = upsertCompletedProgress(userId, lessonId);
+  publishLessonProgress(lessonId);
+  return progress;
+}
+
+function upsertCompletedProgress(userId: number, lessonId: number) {
   const existing = getLessonProgress(userId, lessonId);
 
   if (existing) {
@@ -86,18 +101,21 @@ export function markLessonInProgress(userId: number, lessonId: number) {
   const existing = getLessonProgress(userId, lessonId);
 
   if (existing) {
-    if (existing.status === LessonProgressStatus.Completed) {
+    if (existing.status !== LessonProgressStatus.NotStarted) {
+      // Already in progress or completed — nothing changes.
       return existing;
     }
-    return db
+    const updated = db
       .update(lessonProgress)
       .set({ status: LessonProgressStatus.InProgress })
       .where(eq(lessonProgress.id, existing.id))
       .returning()
       .get();
+    publishLessonProgress(lessonId);
+    return updated;
   }
 
-  return db
+  const created = db
     .insert(lessonProgress)
     .values({
       userId,
@@ -106,10 +124,12 @@ export function markLessonInProgress(userId: number, lessonId: number) {
     })
     .returning()
     .get();
+  publishLessonProgress(lessonId);
+  return created;
 }
 
 export function resetLessonProgress(userId: number, lessonId: number) {
-  return db
+  const removed = db
     .delete(lessonProgress)
     .where(
       and(
@@ -119,6 +139,8 @@ export function resetLessonProgress(userId: number, lessonId: number) {
     )
     .returning()
     .get();
+  if (removed) publishLessonProgress(lessonId);
+  return removed;
 }
 
 function getCourseLessonIds(courseId: number): number[] {

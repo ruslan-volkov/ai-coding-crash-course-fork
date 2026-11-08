@@ -2,6 +2,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import { db } from "~/db";
 import { coupons, purchases, enrollments } from "~/db/schema";
 import crypto from "crypto";
+import { publishAnalyticsEvent } from "~/lib/analytics-events.server";
 
 // ─── Coupon Service ───
 // Handles coupon generation, redemption (with validation), and listing.
@@ -115,5 +116,6 @@ export function redeemCoupon(
     .returning()
     .get();
 
+  publishAnalyticsEvent({ type: "coupon-redeemed", courseId: coupon.courseId });
   return { ok: true, enrollment };
 }

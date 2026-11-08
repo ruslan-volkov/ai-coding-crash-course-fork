@@ -21,6 +21,7 @@ import {
   UserRole,
 } from "~/db/schema";
 import { MIN_COMMENT_LENGTH, MAX_COMMENT_LENGTH } from "~/lib/comments";
+import { publishAnalyticsEvent } from "~/lib/analytics-events.server";
 
 // ─── Comment Service ───
 // Lesson comments: a flat list of top-level questions, each with one level of
@@ -196,11 +197,14 @@ export function createComment(
     }
   }
 
-  return db
+  const comment = db
     .insert(comments)
     .values({ userId, lessonId, parentId, body: trimmed })
     .returning()
     .get();
+
+  publishAnalyticsEvent({ type: "comment", courseId: course.courseId });
+  return comment;
 }
 
 /**
@@ -248,12 +252,19 @@ export function deleteComment(
     return existing;
   }
 
-  return db
+  const deleted = db
     .update(comments)
     .set({ deletedAt: new Date().toISOString() })
     .where(eq(comments.id, commentId))
     .returning()
     .get();
+
+  // A deleted question or reply changes the question counts.
+  const course = getCourseForLesson(existing.lessonId);
+  if (course) {
+    publishAnalyticsEvent({ type: "comment", courseId: course.courseId });
+  }
+  return deleted;
 }
 
 export type QueuedQuestion = {

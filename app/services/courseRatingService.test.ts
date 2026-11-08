@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
+import { captureAnalyticsEvents } from "~/test/analytics-events";
 
 let testDb: ReturnType<typeof createTestDb>;
 let base: ReturnType<typeof seedBaseData>;
@@ -169,5 +170,29 @@ describe("courseRatingService", () => {
       expect(summaries.get(base.course.id)).toEqual({ average: 3, count: 2 });
       expect(summaries.get(other.id)).toEqual({ average: null, count: 0 });
     });
+  });
+});
+
+describe("courseRatingService analytics events", () => {
+  const events = captureAnalyticsEvents();
+
+  beforeEach(() => {
+    testDb = createTestDb();
+    base = seedBaseData(testDb);
+  });
+
+  it("publishes a rating event when a course is rated or re-rated", () => {
+    rateCourse(base.user.id, base.course.id, 2);
+    rateCourse(base.user.id, base.course.id, 5);
+
+    expect(events).toEqual([
+      { type: "rating", courseId: base.course.id },
+      { type: "rating", courseId: base.course.id },
+    ]);
+  });
+
+  it("publishes nothing for an invalid rating", () => {
+    expect(() => rateCourse(base.user.id, base.course.id, 9)).toThrow();
+    expect(events).toEqual([]);
   });
 });
