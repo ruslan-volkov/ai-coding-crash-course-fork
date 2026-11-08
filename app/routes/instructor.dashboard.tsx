@@ -1,7 +1,6 @@
-import { Link, data, isRouteErrorResponse } from "react-router";
+import { Link, isRouteErrorResponse } from "react-router";
 import type { Route } from "./+types/instructor.dashboard";
-import { requireUserId } from "~/lib/access.server";
-import { getUserById } from "~/services/userService";
+import { requireInstructor } from "~/lib/access.server";
 import {
   getCourseTable,
   getEnrollmentTrend,
@@ -9,7 +8,6 @@ import {
   getRevenueTrend,
   parseRange,
 } from "~/services/analyticsService";
-import { UserRole } from "~/db/schema";
 import { StatCard } from "~/components/analytics/stat-card";
 import { RangeSelector } from "~/components/analytics/range-selector";
 import { TrendChart } from "~/components/analytics/trend-chart";
@@ -30,13 +28,7 @@ export function meta() {
 }
 
 export async function loader({ request, url }: Route.LoaderArgs) {
-  const userId = await requireUserId(request);
-  const user = getUserById(userId);
-
-  if (!user || user.role !== UserRole.Instructor) {
-    throw data("Only instructors can access this page.", { status: 403 });
-  }
-
+  const { userId } = await requireInstructor(request);
   const range = parseRange(url.searchParams.get("range"));
 
   return {
@@ -52,7 +44,7 @@ function formatCount(value: number) {
   return value.toLocaleString("en-US");
 }
 
-export default function InstructorAnalyticsDashboard({
+export default function InstructorDashboard({
   loaderData,
 }: Route.ComponentProps) {
   const { range, summary, enrollmentTrend, revenueTrend, courses } = loaderData;

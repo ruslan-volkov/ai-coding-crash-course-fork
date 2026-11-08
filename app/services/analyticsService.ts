@@ -15,6 +15,8 @@ import { courses, enrollments, purchases } from "~/db/schema";
 // - Revenue = gross sum of purchases.amountPaid in cents, filtered by
 //   purchases.createdAt. A team purchase is one purchase row, so it counts once
 //   at purchase time; coupon redemptions create enrollments but no purchase.
+//
+// Uses positional parameters (project convention).
 
 export type AnalyticsRange = "7d" | "30d" | "90d" | "all";
 
@@ -94,7 +96,8 @@ export function getInstructorSummary(
 // Bucketing: daily for 7d/30d, weekly (weeks start Monday) for 90d, monthly for
 // all time. Buckets are UTC and labelled by their first day ("2026-03-09") or,
 // for months, "2026-03". Empty buckets are filled with 0; all-time trends start
-// at the first record's month.
+// at the month of the first enrollment or purchase in scope, so the enrollment
+// and revenue charts share an x-axis.
 
 export type TrendPoint = { bucket: string; value: number };
 
@@ -138,22 +141,39 @@ function nextBucket(bucket: string, granularity: Granularity): string {
   return next.toISOString().slice(0, 10);
 }
 
+/** Earliest enrollment or purchase timestamp in scope, or null when none. */
+function getFirstActivityAt(instructorId: number | null): string | null {
+  const firstEnrollment = db
+    .select({ at: sql<string | null>`min(${enrollments.enrolledAt})` })
+    .from(enrollments)
+    .innerJoin(courses, eq(courses.id, enrollments.courseId))
+    .where(instructorScope(instructorId))
+    .get()?.at;
+
+  const firstPurchase = db
+    .select({ at: sql<string | null>`min(${purchases.createdAt})` })
+    .from(purchases)
+    .innerJoin(courses, eq(courses.id, purchases.courseId))
+    .where(instructorScope(instructorId))
+    .get()?.at;
+
+  const candidates = [firstEnrollment, firstPurchase].filter(
+    (at): at is string => typeof at === "string"
+  );
+  return candidates.length > 0 ? candidates.sort()[0] : null;
+}
+
 function fillBuckets(
   rows: TrendPoint[],
+  instructorId: number | null,
   range: AnalyticsRange,
   granularity: Granularity
 ): TrendPoint[] {
   const values = new Map(rows.map((row) => [row.bucket, row.value]));
-  const rangeStart = getRangeStart(range);
+  const start = getRangeStart(range) ?? getFirstActivityAt(instructorId);
+  if (start === null) return [];
 
-  let first: string;
-  if (rangeStart !== null) {
-    first = bucketOf(new Date(rangeStart), granularity);
-  } else if (rows.length > 0) {
-    first = rows.map((row) => row.bucket).sort()[0];
-  } else {
-    return [];
-  }
+  const first = bucketOf(new Date(start), granularity);
 
   const last = bucketOf(new Date(), granularity);
   const points: TrendPoint[] = [];
@@ -187,7 +207,7 @@ export function getEnrollmentTrend(
     .groupBy(bucket)
     .all();
 
-  return fillBuckets(rows, range, granularity);
+  return fillBuckets(rows, instructorId, range, granularity);
 }
 
 export function getRevenueTrend(
@@ -210,7 +230,7 @@ export function getRevenueTrend(
     .groupBy(bucket)
     .all();
 
-  return fillBuckets(rows, range, granularity);
+  return fillBuckets(rows, instructorId, range, granularity);
 }
 
 // ─── Course Table ───
@@ -233,7 +253,13 @@ export function getCourseTable(
       students: sql<number>`count(*)`.as("students"),
     })
     .from(enrollments)
-    .where(sinceRangeStart(enrollments.enrolledAt, range))
+    .innerJoin(courses, eq(courses.id, enrollments.courseId))
+    .where(
+      and(
+        instructorScope(instructorId),
+        sinceRangeStart(enrollments.enrolledAt, range)
+      )
+    )
     .groupBy(enrollments.courseId)
     .as("student_counts");
 
@@ -243,7 +269,13 @@ export function getCourseTable(
       revenue: sql<number>`sum(${purchases.amountPaid})`.as("revenue"),
     })
     .from(purchases)
-    .where(sinceRangeStart(purchases.createdAt, range))
+    .innerJoin(courses, eq(courses.id, purchases.courseId))
+    .where(
+      and(
+        instructorScope(instructorId),
+        sinceRangeStart(purchases.createdAt, range)
+      )
+    )
     .groupBy(purchases.courseId)
     .as("revenue_totals");
 

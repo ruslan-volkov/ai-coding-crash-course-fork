@@ -254,6 +254,25 @@ describe("analyticsService", () => {
       ]);
     });
 
+    it("starts all-time enrollment and revenue trends at the same month", () => {
+      // Paid in January, enrolled in March: both charts must share an x-axis.
+      purchase(base.user.id, base.course.id, 5000, daysAgo(60));
+      enroll(base.user.id, base.course.id, daysAgo(0));
+
+      const enrollmentBuckets = getEnrollmentTrend(base.instructor.id, "all");
+      const revenueBuckets = getRevenueTrend(base.instructor.id, "all");
+      expect(enrollmentBuckets.map((point) => point.bucket)).toEqual([
+        "2026-01",
+        "2026-02",
+        "2026-03",
+      ]);
+      expect(revenueBuckets.map((point) => point.bucket)).toEqual([
+        "2026-01",
+        "2026-02",
+        "2026-03",
+      ]);
+    });
+
     it("returns no buckets for all time when there is no data", () => {
       expect(getEnrollmentTrend(base.instructor.id, "all")).toEqual([]);
     });
