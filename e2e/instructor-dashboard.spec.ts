@@ -22,6 +22,22 @@ test.describe("instructor dashboard", () => {
     await expect(page).toHaveURL(/\/instructor\/dashboard$/);
   });
 
+  for (const [role, path] of [
+    ["instructor", "/instructor/dashboard"],
+    ["admin", "/admin/analytics"],
+    ["student", "/dashboard"],
+  ] as const) {
+    test(`the home page Dashboard button takes ${role}s to ${path}`, async ({
+      page,
+      loginAs,
+    }) => {
+      await loginAs(role);
+      await page.goto("/");
+      await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`${path}$`));
+    });
+  }
+
   for (const role of ["student", "admin"] as const) {
     test(`${role}s do not see the instructor Dashboard item`, async ({
       page,

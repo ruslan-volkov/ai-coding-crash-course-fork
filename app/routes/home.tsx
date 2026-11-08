@@ -5,7 +5,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
 import { buildCourseQuery, getLessonCountForCourse } from "~/services/courseService";
 import { getAllCategories } from "~/services/categoryService";
-import { CourseStatus } from "~/db/schema";
+import { CourseStatus, UserRole } from "~/db/schema";
 import { BookOpen, GraduationCap, Users, ArrowRight, User, Moon, Sun } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
 import { DevUI } from "~/components/dev-ui";
@@ -45,6 +45,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     countryTierInfo,
     countries: COUNTRIES,
   };
+}
+
+/** Each role's home base — matches the Dashboard/Analytics item in the sidebar. */
+function dashboardPathFor(role: UserRole) {
+  if (role === UserRole.Instructor) return "/instructor/dashboard";
+  if (role === UserRole.Admin) return "/admin/analytics";
+  return "/dashboard";
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
@@ -87,7 +94,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             </button>
             {currentUser ? (
               <Button asChild size="sm">
-                <Link to="/dashboard">Dashboard</Link>
+                <Link to={dashboardPathFor(currentUser.role)}>Dashboard</Link>
               </Button>
             ) : (
               <>
